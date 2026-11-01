@@ -1,15 +1,20 @@
 import "./globals.css";
-import { IBM_Plex_Sans } from "next/font/google";
 import { AppProvider } from "../lib/store";
 import Shell from "../components/Shell";
 
-const font = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600"] });
-export const metadata = { title: "AeroGuard AI", description: "Turbofan engine health and remaining useful life" };
+export const metadata = {
+  title: "AeroGuard AI — Aerospace Predictive Maintenance & Digital Twin",
+  description: "Advanced 3D turbofan engine digital twin, AI predictive maintenance, and RUL analytics by Team Tech Yodhas",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={font.className}><AppProvider><Shell>{children}</Shell></AppProvider></body>
+      <body>
+        <AppProvider>
+          <Shell>{children}</Shell>
+        </AppProvider>
+      </body>
     </html>
   );
 }

@@ -8,5 +8,5 @@ matplotlib
 seaborn
 fastapi
 uvicorn[standard]
-pydantic>=2
+pydantic
 requests
