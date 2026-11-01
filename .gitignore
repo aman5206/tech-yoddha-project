@@ -1,7 +1,6 @@
 __pycache__/
 *.pyc
 .venv/
-data/raw/*.txt
 artifacts/models/*
 node_modules/
 .next/

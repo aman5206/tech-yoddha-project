@@ -7,6 +7,5 @@ joblib
 matplotlib
 seaborn
 fastapi
-uvicorn[standard]
 pydantic
 requests
