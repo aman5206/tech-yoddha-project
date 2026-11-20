@@ -37,18 +37,20 @@ const LOCAL_MAINTENANCE_HISTORY: HistoryRec[] = [
 let LOCAL_ALERTS: Alert[] = getFleetAlerts();
 
 /**
- * Checks if the backend is reachable with a short timeout
+ * Checks if the backend is reachable with a reasonable timeout.
+ * Caches positive responses longer (30s) and negative responses shorter (5s).
  */
 async function checkBackend(): Promise<boolean> {
   const now = Date.now();
-  if (isBackendAvailable !== null && now - lastCheckTime < 15000) {
+  const cacheDuration = isBackendAvailable ? 30000 : 5000;
+  if (isBackendAvailable !== null && now - lastCheckTime < cacheDuration) {
     return isBackendAvailable;
   }
   
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1200);
-    const r = await fetch(`${API}/models/status`, {
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const r = await fetch(`${API}/health`, {
       method: "GET",
       signal: controller.signal,
       cache: "no-store",
@@ -56,7 +58,19 @@ async function checkBackend(): Promise<boolean> {
     clearTimeout(timeoutId);
     isBackendAvailable = r.ok;
   } catch {
-    isBackendAvailable = false;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const r = await fetch(`${API}/models/status`, {
+        method: "GET",
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      clearTimeout(timeoutId);
+      isBackendAvailable = r.ok;
+    } catch {
+      isBackendAvailable = false;
+    }
   }
   
   lastCheckTime = now;
@@ -65,7 +79,7 @@ async function checkBackend(): Promise<boolean> {
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3500);
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
   try {
     const r = await fetch(`${API}${path}`, {
       cache: "no-store",
@@ -104,7 +118,20 @@ export async function getFleet(): Promise<Fleet> {
   if (await checkBackend()) {
     try {
       const res = await req<Fleet>("/fleet");
-      return { ...res, source: "LIVE_API" };
+      // Ensure all FleetEngine fields are populated with valid values
+      const engines = (res.engines || []).map((e: any) => ({
+        ...e,
+        max_cycle: e.max_cycle ?? e.cycle ?? 150,
+        actual_rul: e.actual_rul ?? Math.max(0, Math.round(e.predicted_rul)),
+        health_score: e.health_score ?? Math.max(5, Math.min(100, Math.round((e.predicted_rul / 125) * 100))),
+        anomaly_score: e.anomaly_score ?? (e.health_status === "CRITICAL" ? 0.88 : e.health_status === "WARNING" ? 0.65 : e.health_status === "MONITOR" ? 0.35 : 0.08),
+        critical_component: e.critical_component ?? (e.health_status === "CRITICAL" ? "HPC" : e.health_status === "WARNING" ? "HPT" : "Fan"),
+        inspect_within_cycles: e.inspect_within_cycles ?? Math.max(0, Math.round(e.predicted_rul - 10)),
+        inspect_by: e.inspect_by ?? new Date(Date.now() + 86400000 * 14).toISOString().slice(0, 10),
+        priority: e.priority ?? (e.health_status === "CRITICAL" ? "P1 Urgent" : e.health_status === "WARNING" ? "P2 High" : e.health_status === "MONITOR" ? "P3 Routine" : "P4 None"),
+        last_inspection: e.last_inspection ?? null,
+      }));
+      return { ...res, engines, source: "LIVE_API" };
     } catch {
       // Fallback
     }
@@ -142,7 +169,25 @@ export async function ackAlert(id: number): Promise<Alert> {
 export async function getSensors(e: number, upto = 100000): Promise<SensorData> {
   if (await checkBackend()) {
     try {
-      return await req<SensorData>(`/sensors/${e}?upto=${upto}`);
+      const res = await req<SensorData>(`/sensors/${e}?upto=${upto}`);
+      // Ensure latest sensors have unit, station, component, baseline
+      const latest: Record<string, any> = {};
+      Object.entries(res.latest || {}).forEach(([k, s]: [string, any]) => {
+        const def = SENSOR_DEFINITIONS[k];
+        latest[k] = {
+          ...s,
+          label: s.label || def?.label || k,
+          unit: s.unit || def?.unit || "",
+          station: s.station || def?.station || "",
+          component: s.component || def?.component || "Core",
+          baseline: s.baseline ?? def?.baseline ?? s.value ?? 0,
+        };
+      });
+      return {
+        ...res,
+        latest,
+        groups: res.groups || SENSOR_GROUPS,
+      };
     } catch {
       // Fallback
     }

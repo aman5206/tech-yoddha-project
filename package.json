@@ -1,0 +1,13 @@
+{
+  "name": "aeroguard-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AeroGuard AI — 3D Aerospace Predictive Maintenance & Digital Twin Platform",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": ".venv\\Scripts\\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload",
+    "build": "npm --prefix frontend run build",
+    "start": "npm --prefix frontend run start"
+  }
+}

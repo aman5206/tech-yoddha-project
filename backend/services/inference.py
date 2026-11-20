@@ -3,6 +3,7 @@ from pathlib import Path
 
 import joblib
 import numpy as np
+import pandas as pd
 import torch
 
 from src.models.architectures import RNNRegressor
@@ -39,7 +40,8 @@ class Predictor:
         x = np.asarray(rows, dtype=np.float32)
         if x.ndim != 2 or x.shape[1] != len(self.features):
             raise ValueError(f"Each row needs {len(self.features)} values in order: {self.features}")
-        x = self.scaler.transform(x).astype(np.float32)
+        df = pd.DataFrame(x, columns=self.features)
+        x = self.scaler.transform(df).astype(np.float32)
         padded = len(x) < self.seq_len
         if padded:  # engine younger than the window: repeat first reading
             x = np.vstack([np.repeat(x[:1], self.seq_len - len(x), axis=0), x])
